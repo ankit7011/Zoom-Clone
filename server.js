@@ -32,9 +32,12 @@ io.on('connection',socket=>{
         socket.on('message',message =>{
             io.to(roomId).emit('createMessage',message)
         })
+        socket.on('forceDisconnect', function(){
+            socket.disconnect(true)
+        });
 
         socket.on('disconnect',()=>{
-            console.log("HERE I M IN DISCONNET")
+            //console.log("HERE I M IN DISCONNET")
             socket.broadcast.to(roomId).emit('user-disconnected',userId)
         })
     })  

@@ -8,11 +8,12 @@ const peers={}
 const peer = new Peer(undefined,{
     path : '/peerjs',
     host : '/',
-    port : '443'
+    port : '3030'
 }); 
 
 let myVideoStream;
-
+let currpeer;
+let peerList=[];
 navigator.mediaDevices.getUserMedia({ // this gets the audio and video allowance for browser for user
     //getusermedia accepts an object
     video : true,
@@ -26,22 +27,72 @@ navigator.mediaDevices.getUserMedia({ // this gets the audio and video allowance
         call.answer(stream);
         const video=document.createElement('video')
         call.on('stream',userVideoStream=>{
-            addVideoStream(video,userVideoStream)
-            console.log("debug in answer");
+            //if(!peerList.includes(call.peer))
+            {
+                addVideoStream(video,userVideoStream)
+                //console.log("debug in answer");
+                peerList.push(call.peer)
+                currpeer=call.peerConnection
+            }
         })
     })
     //console.log("debug in then ");
-
+    
     socket.on('user-connected',userId=>{
         console.log("User Connected", userId);
         connectToNewUser(userId, stream);
         setTimeout(connectToNewUser,1000,userId,stream)
     })
-
+    
     socket.on('user-disconnected',userId=>{
-        console.log("user dis : " + userId)
+        console.log("user dis : " + userId + peers[userId])
         if(peers[userId]) peers[userId].close()
     })
+    
+    peer.on('disconnected',userId=>{
+        console.log("in peer discon + usid" + userId + peers[userId])
+        
+        if(peers[userId])
+        {
+            console.log("in peer discon")
+            peers[userId].close()
+        }
+    })
+                
+    //shareScreen
+    document.getElementById("shareScreen").addEventListener('click',(e)=>{
+        navigator.mediaDevices.getDisplayMedia({
+            video : {
+                cursor: "always"
+            },
+            audio :{
+                echoCancellation: true,
+                noiseSuppression : true
+            }
+        }).then((stream)=>{
+            let videoTrack=stream.getVideoTracks()[0];
+            videoTrack.onended=function () {
+                stopScreenShare();
+            }
+    
+            let sender = currpeer.getSenders().find(function(s){
+                return s.track.kind == videoTrack.kind
+            })
+    
+            sender.replaceTrack(videoTrack)
+        }).catch((err)=>{
+            console.log("unabe to get screen "+err)
+        })
+    })
+    
+    function stopScreenShare()
+    {
+        let videoTrack=stream.getVideoTracks()[0];
+        let sender = currpeer.getSenders().find(function(s){
+            return s.track.kind==videoTrack.kind;
+        })
+        sender.replaceTrack(videoTrack);
+    }
     
 })
 
@@ -50,6 +101,8 @@ peer.on('open',id=>{
 
     socket.emit('join-room',ROOM_ID,id);
 })
+
+
 
 
 const connectToNewUser=(userId,stream)=>
@@ -65,7 +118,12 @@ const connectToNewUser=(userId,stream)=>
     }) */
     call.on('stream',userVideoStream => {
   //      console.log("call on ");
+   // if(!peerList.includes(call.peer)
+    {
         addVideoStream(video,userVideoStream)
+        peerList.push(call.peer)
+        currpeer=call.peerConnection
+    } 
 //        console.log("debug12");
     })
     peers[userId]=call
@@ -169,4 +227,14 @@ const setStopVideo =()=>{
     <span>Stop Video</span>
     `
     document.querySelector(".main_video_button").innerHTML=html
+}
+
+const closeTheTab=()=>{
+    /* 
+    var customWindow = window.open('', '_blank', '');
+    customWindow.close(); */
+    //console.log(peer.disconnected)
+    //peer.disconnect();
+    socket.emit('forceDisconnect');
+
 }
